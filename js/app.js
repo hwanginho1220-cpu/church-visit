@@ -35,6 +35,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const soonConflictAlert = document.getElementById('soon-conflict-alert');
   const daySlotPreview = document.getElementById('day-slot-preview');
 
+  // 심방 가능 날짜 관련 DOM
+  const availableDatesInfoTag = document.getElementById('available-dates-info-tag');
+  const availableDatesChipContainer = document.getElementById('available-dates-chip-container');
+  const availableDatesChips = document.getElementById('available-dates-chips');
+  const btnModeAll = document.getElementById('btn-mode-all');
+  const btnModeRestricted = document.getElementById('btn-mode-restricted');
+  const adminDateStart = document.getElementById('admin-date-start');
+  const adminDateEnd = document.getElementById('admin-date-end');
+  const btnAdminAddRange = document.getElementById('btn-admin-add-range');
+  const adminAvailableCountBadge = document.getElementById('admin-available-count-badge');
+  const adminAvailableDatesList = document.getElementById('admin-available-dates-list');
+  const btnAdminClearAllDates = document.getElementById('btn-admin-clear-all-dates');
+
   // 상단 현황 배지
   const cloudStatusBadge = document.getElementById('cloud-status-badge');
   const headerSummaryText = document.getElementById('header-summary-text');
@@ -65,17 +78,25 @@ document.addEventListener('DOMContentLoaded', () => {
     soonSelect.appendChild(customOpt);
   }
 
-  // 오늘 날짜를 기본값으로 설정
+  // 오늘 날짜 및 기본값 설정
   function initDefaultDates() {
     const today = new Date();
-    // 심방은 보통 주말이나 다음 주를 신청하므로 기본 날짜를 내일 또는 오늘로
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
     const d = String(today.getDate()).padStart(2, '0');
     const todayStr = `${y}-${m}-${d}`;
 
-    dateInput.value = todayStr;
+    // 만약 가능 날짜가 지정되어 있으면 가장 빠른 미래 가능 날짜를 기본값으로
+    const available = window.visitStore.getAvailableDates().filter((date) => date >= todayStr);
+    if (window.visitStore.isRestrictMode() && available.length > 0) {
+      dateInput.value = available[0];
+    } else {
+      dateInput.value = todayStr;
+    }
     dateInput.min = todayStr; // 지난 날짜 신청 방지
+
+    if (adminDateStart) adminDateStart.min = todayStr;
+    if (adminDateEnd) adminDateEnd.min = todayStr;
   }
 
   // ==========================================
@@ -105,7 +126,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 탭 전환 시 필요한 렌더링
-    if (tabKey === 'calendar' && calendar) {
+    if (tabKey === 'apply') {
+      renderAvailableDatesChips();
+    } else if (tabKey === 'calendar' && calendar) {
       calendar.render();
       renderSelectedDateSchedule(calendar.selectedDateStr);
     } else if (tabKey === 'status') {
@@ -116,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================
-  // 3. 중복 실시간 검증 (Validation)
+  // 3. 중복 및 심방 가능 날짜 실시간 검증 (Validation)
   // ==========================================
   function getSelectedSoonName() {
     if (soonSelect.value === '__custom__') {
@@ -163,32 +186,51 @@ document.addEventListener('DOMContentLoaded', () => {
       soonConflictAlert.classList.add('hidden');
     }
 
-    // 2. 시간 충돌 검사
-    if (date && startTime && endTime) {
-      const timeCheck = window.visitStore.checkTimeConflict(date, startTime, endTime);
-      if (timeCheck.hasConflict) {
+    // 2. 심방 가능 날짜 제한 검사
+    if (date) {
+      const dateCheck = window.visitStore.checkDateRestriction(date);
+      if (!dateCheck.allowed) {
         conflictAlert.classList.remove('hidden');
         conflictAlert.innerHTML = `
           <div class="flex items-start gap-2 text-rose-800">
-            <svg class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <svg class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
             <div>
-              <span class="font-bold">[시간 중복 - 신청 불가]</span> ${timeCheck.reason}<br>
-              <span class="text-xs text-rose-700">먼저 신청한 다른 순과 시간이 겹칩니다. 다른 시간대를 선택해주세요.</span>
+              <span class="font-bold">[심방 불가 날짜]</span> ${dateCheck.reason}<br>
+              <span class="text-xs text-rose-700">목사님이 지정하신 심방 가능 날짜 중에서 선택해주세요.</span>
             </div>
           </div>
         `;
         conflictAlert.className = 'p-3 bg-rose-50 border border-rose-200 rounded-xl mb-4 animate-shake';
         isValid = false;
+      } else if (startTime && endTime) {
+        // 3. 시간 충돌 검사
+        const timeCheck = window.visitStore.checkTimeConflict(date, startTime, endTime);
+        if (timeCheck.hasConflict) {
+          conflictAlert.classList.remove('hidden');
+          conflictAlert.innerHTML = `
+            <div class="flex items-start gap-2 text-rose-800">
+              <svg class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div>
+                <span class="font-bold">[시간 중복 - 신청 불가]</span> ${timeCheck.reason}<br>
+                <span class="text-xs text-rose-700">먼저 신청한 다른 순과 시간이 겹칩니다. 다른 시간대를 선택해주세요.</span>
+              </div>
+            </div>
+          `;
+          conflictAlert.className = 'p-3 bg-rose-50 border border-rose-200 rounded-xl mb-4 animate-shake';
+          isValid = false;
+        } else {
+          // 충돌 없음
+          conflictAlert.classList.remove('hidden');
+          conflictAlert.className = 'p-3 bg-emerald-50 border border-emerald-200 rounded-xl mb-4';
+          conflictAlert.innerHTML = `
+            <div class="flex items-center gap-2 text-emerald-800 text-sm font-medium">
+              <svg class="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>이 날짜와 시간대는 예약이 가능합니다! (중복 없음)</span>
+            </div>
+          `;
+        }
       } else {
-        // 충돌 없음
-        conflictAlert.classList.remove('hidden');
-        conflictAlert.className = 'p-3 bg-emerald-50 border border-emerald-200 rounded-xl mb-4';
-        conflictAlert.innerHTML = `
-          <div class="flex items-center gap-2 text-emerald-800 text-sm font-medium">
-            <svg class="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>이 시간대는 예약이 가능합니다! (중복 없음)</span>
-          </div>
-        `;
+        conflictAlert.classList.add('hidden');
       }
     } else {
       conflictAlert.classList.add('hidden');
@@ -255,6 +297,62 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================
+  // [신규] 심방 가능 날짜 빠른 선택 칩 렌더링
+  // ==========================================
+  function renderAvailableDatesChips() {
+    if (!availableDatesChips || !availableDatesChipContainer) return;
+
+    const isRestrict = window.visitStore.isRestrictMode();
+    const dates = window.visitStore.getAvailableDates();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const validDates = dates.filter((d) => d >= todayStr);
+
+    if (isRestrict && validDates.length > 0) {
+      availableDatesChipContainer.classList.remove('hidden');
+      if (availableDatesInfoTag) availableDatesInfoTag.classList.remove('hidden');
+
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      availableDatesChips.innerHTML = validDates
+        .map((d) => {
+          const dayObj = new Date(d);
+          const dayName = days[dayObj.getDay()] || '';
+          const isSelected = dateInput.value === d;
+          const isSun = dayObj.getDay() === 0;
+          const isSat = dayObj.getDay() === 6;
+          let textClr = isSun ? 'text-rose-600' : isSat ? 'text-blue-600' : 'text-slate-700';
+
+          const activeClasses = isSelected
+            ? 'bg-blue-600 text-white font-black shadow-xs ring-2 ring-blue-300'
+            : `bg-white ${textClr} hover:bg-blue-50 border border-slate-200`;
+
+          return `
+            <button type="button" class="btn-chip-date px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 ${activeClasses}"
+                    data-date="${d}">
+              <span>📅 ${d.slice(5)} (${dayName})</span>
+            </button>
+          `;
+        })
+        .join('');
+
+      // 칩 클릭 시 즉각 선택
+      availableDatesChips.querySelectorAll('.btn-chip-date').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const selected = btn.getAttribute('data-date');
+          dateInput.value = selected;
+          validateConflict();
+          if (calendar) {
+            calendar.selectDate(selected);
+          }
+          renderAvailableDatesChips();
+        });
+      });
+    } else {
+      availableDatesChipContainer.classList.add('hidden');
+      if (availableDatesInfoTag) availableDatesInfoTag.classList.add('hidden');
+    }
+  }
+
+  // ==========================================
   // 4. 신청 폼 제출
   // ==========================================
   form.addEventListener('submit', async (e) => {
@@ -298,6 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
         customSoonWrap.classList.add('hidden');
         conflictAlert.classList.add('hidden');
         soonConflictAlert.classList.add('hidden');
+        renderAvailableDatesChips();
         if (calendar) {
           calendar.render();
           renderSelectedDateSchedule(dateInput.value);
@@ -370,6 +469,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const dayObj = new Date(dateStr);
     const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
     const dayName = daysOfWeek[dayObj.getDay()];
+    const isRestrictMode = window.visitStore.isRestrictMode();
+    const isDateAvailable = window.visitStore.isDateAvailable(dateStr);
 
     let html = `
       <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
@@ -379,26 +480,56 @@ document.addEventListener('DOMContentLoaded', () => {
           </h3>
           <p class="text-xs text-slate-500">예약 ${visits.length}건 등록됨</p>
         </div>
-        <button id="btn-apply-this-date" class="px-3 py-1.5 text-xs font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-1 shadow-xs">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          이 날짜로 신청하기
-        </button>
+        ${
+          isRestrictMode && !isDateAvailable
+            ? `<span class="px-2.5 py-1 text-xs font-bold rounded-xl bg-slate-100 text-slate-400 border border-slate-200">
+                 심방 불가일
+               </span>`
+            : `<button id="btn-apply-this-date" class="px-3 py-1.5 text-xs font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-1 shadow-xs">
+                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                 이 날짜로 신청하기
+               </button>`
+        }
       </div>
     `;
 
-    if (visits.length === 0) {
+    if (isRestrictMode && !isDateAvailable) {
       html += `
-        <div class="text-center py-10 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-          <div class="w-12 h-12 rounded-full bg-blue-50 text-blue-500 mx-auto flex items-center justify-center mb-3">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 mb-4 flex items-start gap-2">
+          <span class="text-base shrink-0">⚠️</span>
+          <div>
+            <span class="font-bold">목사님 심방 일정이 없는 날짜입니다.</span><br>
+            <span class="text-amber-700">목사님이 지정하신 심방 가능 날짜 중에서 선택해주세요.</span>
           </div>
-          <p class="font-semibold text-slate-700 mb-1">아직 등록된 심방 일정이 없습니다</p>
-          <p class="text-xs text-slate-400 mb-4">원하시는 시간에 가장 먼저 신청해보세요!</p>
-          <button id="btn-empty-apply" class="inline-flex items-center gap-1 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition">
-            이 날짜에 바로 신청
-          </button>
         </div>
       `;
+    }
+
+    if (visits.length === 0) {
+      if (isRestrictMode && !isDateAvailable) {
+        html += `
+          <div class="text-center py-10 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+            <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-3">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+            </div>
+            <p class="font-semibold text-slate-700 mb-1">심방 일정이 없는 날입니다</p>
+            <p class="text-xs text-slate-400">초록색 [가능] 표시가 있는 다른 날짜를 선택해주세요.</p>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="text-center py-10 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+            <div class="w-12 h-12 rounded-full bg-blue-50 text-blue-500 mx-auto flex items-center justify-center mb-3">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            </div>
+            <p class="font-semibold text-slate-700 mb-1">아직 등록된 심방 일정이 없습니다</p>
+            <p class="text-xs text-slate-400 mb-4">원하시는 시간에 가장 먼저 신청해보세요!</p>
+            <button id="btn-empty-apply" class="inline-flex items-center gap-1 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition">
+              이 날짜에 바로 신청
+            </button>
+          </div>
+        `;
+      }
     } else {
       html += `<div class="space-y-3">`;
       visits.forEach((v) => {
@@ -590,8 +721,77 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       authWrap.classList.add('hidden');
       panelWrap.classList.remove('hidden');
+      renderAdminAvailableDates();
       renderAdminTable();
     }
+  }
+
+  // [신규] 관리자 심방 가능 날짜 현황 렌더링
+  function renderAdminAvailableDates() {
+    if (!adminAvailableDatesList) return;
+
+    const isRestrict = window.cloudSync.getIsRestrictMode();
+    const dates = window.cloudSync.getAvailableDates();
+
+    // 모드 버튼 스타일 갱신
+    if (btnModeAll && btnModeRestricted) {
+      if (isRestrict) {
+        btnModeRestricted.className = 'px-3 py-1.5 rounded-xl font-bold transition bg-blue-600 text-white shadow-xs';
+        btnModeAll.className = 'px-3 py-1.5 rounded-xl font-bold transition text-slate-600 hover:text-slate-900';
+      } else {
+        btnModeAll.className = 'px-3 py-1.5 rounded-xl font-bold transition bg-blue-600 text-white shadow-xs';
+        btnModeRestricted.className = 'px-3 py-1.5 rounded-xl font-bold transition text-slate-600 hover:text-slate-900';
+      }
+    }
+
+    if (adminAvailableCountBadge) {
+      adminAvailableCountBadge.textContent = `${dates.length}일 등록됨 (${isRestrict ? '지정일만 허용 모드' : '자유 신청 모드'})`;
+      adminAvailableCountBadge.className = isRestrict
+        ? 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700'
+        : 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-200 text-slate-600';
+    }
+
+    if (dates.length === 0) {
+      adminAvailableDatesList.innerHTML = `
+        <div class="w-full text-center py-6 text-xs text-slate-400">
+          지정된 심방 가능 날짜가 없습니다.<br>
+          위의 <strong>요일별 일괄 추가</strong>나 <strong>기간 추가</strong>를 이용해 날짜를 등록하세요.
+        </div>
+      `;
+      return;
+    }
+
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    adminAvailableDatesList.innerHTML = dates
+      .map((d) => {
+        const dayObj = new Date(d);
+        const dayName = days[dayObj.getDay()] || '';
+        const isSun = dayObj.getDay() === 0;
+        const isSat = dayObj.getDay() === 6;
+        let dayClr = isSun ? 'text-rose-600' : isSat ? 'text-blue-600' : 'text-slate-800';
+
+        return `
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs text-xs font-medium">
+            <span class="font-bold ${dayClr}">${d} (${dayName})</span>
+            <button type="button" class="btn-admin-remove-date text-slate-400 hover:text-rose-600 p-0.5 rounded-md hover:bg-rose-50 transition" data-date="${d}" title="이 날짜 삭제">
+              ✕
+            </button>
+          </div>
+        `;
+      })
+      .join('');
+
+    // 개별 날짜 삭제 버튼 이벤트
+    adminAvailableDatesList.querySelectorAll('.btn-admin-remove-date').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const d = btn.getAttribute('data-date');
+        await window.cloudSync.removeAvailableDate(d);
+        renderAdminAvailableDates();
+        renderAvailableDatesChips();
+        if (calendar) calendar.render();
+        validateConflict();
+      });
+    });
   }
 
   // 관리자 인증 폼
@@ -612,6 +812,108 @@ document.addEventListener('DOMContentLoaded', () => {
     adminAuthenticated = false;
     renderAdminView();
   });
+
+  // [신규] 관리자 심방 가능 날짜 관련 액션 이벤트
+  if (btnModeAll) {
+    btnModeAll.addEventListener('click', async () => {
+      await window.cloudSync.setRestrictMode(false);
+      renderAdminAvailableDates();
+      renderAvailableDatesChips();
+      if (calendar) calendar.render();
+      validateConflict();
+    });
+  }
+
+  if (btnModeRestricted) {
+    btnModeRestricted.addEventListener('click', async () => {
+      await window.cloudSync.setRestrictMode(true);
+      renderAdminAvailableDates();
+      renderAvailableDatesChips();
+      if (calendar) calendar.render();
+      validateConflict();
+    });
+  }
+
+  // 요일별 일괄 추가 버튼
+  document.querySelectorAll('.btn-weekday-add').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const targetDay = Number(btn.getAttribute('data-day'));
+      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+      const today = new Date();
+      const newDates = [];
+
+      for (let i = 0; i <= 60; i++) {
+        const cur = new Date(today);
+        cur.setDate(today.getDate() + i);
+        if (cur.getDay() === targetDay) {
+          const y = cur.getFullYear();
+          const m = String(cur.getMonth() + 1).padStart(2, '0');
+          const d = String(cur.getDate()).padStart(2, '0');
+          newDates.push(`${y}-${m}-${d}`);
+        }
+      }
+
+      await window.cloudSync.addAvailableDates(newDates);
+      alert(`향후 60일 내 모든 [${dayNames[targetDay]}요일] (${newDates.length}일)이 심방 가능 날짜로 등록되었습니다!`);
+      renderAdminAvailableDates();
+      renderAvailableDatesChips();
+      if (calendar) calendar.render();
+      validateConflict();
+    });
+  });
+
+  // 기간 또는 단일 날짜 추가 버튼
+  if (btnAdminAddRange) {
+    btnAdminAddRange.addEventListener('click', async () => {
+      const startVal = adminDateStart.value;
+      const endVal = adminDateEnd.value || startVal;
+
+      if (!startVal) {
+        alert('시작 날짜를 선택해주세요.');
+        adminDateStart.focus();
+        return;
+      }
+
+      if (startVal > endVal) {
+        alert('종료 날짜는 시작 날짜 이후여야 합니다.');
+        return;
+      }
+
+      const newDates = [];
+      const cur = new Date(startVal);
+      const end = new Date(endVal);
+
+      while (cur <= end) {
+        const y = cur.getFullYear();
+        const m = String(cur.getMonth() + 1).padStart(2, '0');
+        const d = String(cur.getDate()).padStart(2, '0');
+        newDates.push(`${y}-${m}-${d}`);
+        cur.setDate(cur.getDate() + 1);
+      }
+
+      await window.cloudSync.addAvailableDates(newDates);
+      alert(`${startVal} ~ ${endVal} (${newDates.length}일)이 심방 가능 날짜로 등록되었습니다!`);
+      adminDateStart.value = '';
+      adminDateEnd.value = '';
+      renderAdminAvailableDates();
+      renderAvailableDatesChips();
+      if (calendar) calendar.render();
+      validateConflict();
+    });
+  }
+
+  // 모든 날짜 비우기 버튼
+  if (btnAdminClearAllDates) {
+    btnAdminClearAllDates.addEventListener('click', async () => {
+      if (confirm('등록된 심방 가능 날짜를 모두 삭제하시겠습니까?\n모두 삭제되면 "모든 날짜 자유 신청 모드"로 자동 전환됩니다.')) {
+        await window.cloudSync.clearAllAvailableDates();
+        renderAdminAvailableDates();
+        renderAvailableDatesChips();
+        if (calendar) calendar.render();
+        validateConflict();
+      }
+    });
+  }
 
   // 관리자 신청 목록 테이블 렌더링
   function renderAdminTable() {
@@ -701,12 +1003,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
     link.setAttribute('download', `우면공동체_강현구목사님_순심방_일정현황_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   });
 
   // ==========================================
@@ -801,7 +1105,13 @@ document.addEventListener('DOMContentLoaded', () => {
     headerSummaryText.textContent = `총 ${stats.total}개 순 중 ${stats.completed}개 순 신청 완료 (${stats.rate}%)`;
     headerProgressBar.style.width = `${stats.rate}%`;
 
-    // 3. 활성화된 화면 재렌더링
+    // 3. 심방 가능 날짜 칩 및 관리자 설정 갱신
+    renderAvailableDatesChips();
+    if (adminAuthenticated) {
+      renderAdminAvailableDates();
+    }
+
+    // 4. 활성화된 화면 재렌더링
     if (currentTab === 'calendar' && calendar) {
       calendar.render();
       renderSelectedDateSchedule(calendar.selectedDateStr);
@@ -841,6 +1151,7 @@ document.addEventListener('DOMContentLoaded', () => {
   customSoonInput.addEventListener('input', validateConflict);
   dateInput.addEventListener('change', () => {
     validateConflict();
+    renderAvailableDatesChips();
     if (calendar) {
       calendar.selectDate(dateInput.value);
     }
@@ -981,7 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
       editConflictAlert.classList.remove('hidden');
       editConflictAlert.innerHTML = `
         <div class="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 flex items-start gap-1.5">
-          <span class="font-bold shrink-0">⚠️ 시간 중복:</span>
+          <span class="font-bold shrink-0">⚠️ 중복 오류:</span>
           <span>${timeCheck.reason} 다른 시간대를 선택해주세요.</span>
         </div>
       `;
@@ -1009,7 +1320,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!currentDetailVisit) return;
 
     if (!validateEditConflict()) {
-      alert('시간 중복이 있습니다. 시간을 다시 확인해주세요.');
+      alert('시간 중복 또는 오류가 있습니다. 다시 확인해주세요.');
       return;
     }
 
@@ -1075,7 +1386,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnSaveEdit) {
     btnSaveEdit.addEventListener('click', (e) => {
-      // 폼 서브밋이 안 먹힐 경우를 대비한 직접 실행
       if (e.target.type !== 'submit') {
         executeSaveEdit(e);
       }
@@ -1150,7 +1460,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3) 카드 클릭 시 상세 모달 열기
     const card = e.target.closest('.card-view-detail');
     if (card) {
-      // 퀵 신청 버튼이나 삭제 버튼 클릭이 아닌 경우만 상세 모달 열기
       if (!e.target.closest('.btn-quick-apply-soon') && !e.target.closest('.btn-delete-visit')) {
         const visitId = card.getAttribute('data-visit-id');
         if (visitId) {
@@ -1172,7 +1481,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sampleBtn = document.getElementById('btn-seed-sample');
   if (sampleBtn) {
     sampleBtn.addEventListener('click', () => {
-      if (confirm('테스트용 샘플 일정 4건을 생성하시겠습니까?')) {
+      if (confirm('테스트용 샘플 일정 4건을 생성하시겠습니까? (가능 날짜도 함께 등록됩니다)')) {
         window.cloudSync.seedSampleData();
       }
     });
@@ -1182,5 +1491,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initSoonSelectOptions();
   initDefaultDates();
   initCalendar();
+  renderAvailableDatesChips();
   validateConflict();
 });

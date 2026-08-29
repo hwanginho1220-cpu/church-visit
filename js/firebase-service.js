@@ -6,15 +6,20 @@
 const STORAGE_KEY_VISITS = 'church_visit_data_v1';
 const STORAGE_KEY_FIREBASE_CONFIG = 'church_visit_firebase_config';
 const STORAGE_KEY_DELETED = 'church_visit_deleted_ids_v1';
+const STORAGE_KEY_AVAILABLE_DATES = 'church_visit_available_dates_v1';
+const STORAGE_KEY_RESTRICT_MODE = 'church_visit_restrict_mode_v1';
 
 class CloudSyncService {
   constructor() {
     this.isCloudEnabled = false;
     this.db = null;
     this.unsubscribe = null;
+    this.settingsUnsubscribe = null;
     this.listeners = [];
     this.visits = [];
     this.deletedVisitIds = this.loadDeletedIds();
+    this.availableDates = this.loadAvailableDates();
+    this.isRestrictMode = this.loadRestrictMode();
     this.init();
   }
 
@@ -31,6 +36,86 @@ class CloudSyncService {
     try {
       localStorage.setItem(STORAGE_KEY_DELETED, JSON.stringify([...this.deletedVisitIds]));
     } catch (e) {}
+  }
+
+  // 심방 가능 날짜 및 모드 로드
+  loadAvailableDates() {
+    try {
+      const str = localStorage.getItem(STORAGE_KEY_AVAILABLE_DATES);
+      return str ? JSON.parse(str) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  loadRestrictMode() {
+    try {
+      const str = localStorage.getItem(STORAGE_KEY_RESTRICT_MODE);
+      return str !== null ? JSON.parse(str) : true;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  saveAvailableDatesLocally(dates, isRestrictMode = true) {
+    try {
+      localStorage.setItem(STORAGE_KEY_AVAILABLE_DATES, JSON.stringify(dates));
+      localStorage.setItem(STORAGE_KEY_RESTRICT_MODE, JSON.stringify(isRestrictMode));
+    } catch (e) {}
+  }
+
+  getAvailableDates() {
+    return [...this.availableDates].sort();
+  }
+
+  getIsRestrictMode() {
+    return this.isRestrictMode;
+  }
+
+  // 심방 가능 날짜 및 운영 모드 저장
+  async saveAvailableDates(dates, isRestrictMode = true) {
+    const uniqueSorted = Array.from(new Set(dates)).sort();
+    this.availableDates = uniqueSorted;
+    this.isRestrictMode = isRestrictMode;
+    this.saveAvailableDatesLocally(uniqueSorted, isRestrictMode);
+    this.notifyListeners({ type: 'DATES_UPDATE', source: 'local' });
+
+    if (this.isCloudEnabled && this.db) {
+      this.db.collection('settings').doc('schedule').set({
+        availableDates: uniqueSorted,
+        isRestrictMode,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch((err) => console.warn('클라우드 가능 날짜 동기화 지연:', err.message));
+    }
+    return true;
+  }
+
+  async toggleAvailableDate(dateStr) {
+    let nextDates = [...this.availableDates];
+    if (nextDates.includes(dateStr)) {
+      nextDates = nextDates.filter((d) => d !== dateStr);
+    } else {
+      nextDates.push(dateStr);
+    }
+    return this.saveAvailableDates(nextDates, this.isRestrictMode);
+  }
+
+  async addAvailableDates(newDatesArr) {
+    const combined = Array.from(new Set([...this.availableDates, ...newDatesArr]));
+    return this.saveAvailableDates(combined, this.isRestrictMode);
+  }
+
+  async removeAvailableDate(dateStr) {
+    const nextDates = this.availableDates.filter((d) => d !== dateStr);
+    return this.saveAvailableDates(nextDates, this.isRestrictMode);
+  }
+
+  async clearAllAvailableDates() {
+    return this.saveAvailableDates([], this.isRestrictMode);
+  }
+
+  async setRestrictMode(isRestrict) {
+    return this.saveAvailableDates(this.availableDates, isRestrict);
   }
 
   // 초기화: 저장된 Firebase 설정 확인 또는 파일 기본 설정 로드
@@ -75,6 +160,10 @@ class CloudSyncService {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+    if (this.settingsUnsubscribe) {
+      this.settingsUnsubscribe();
+      this.settingsUnsubscribe = null;
+    }
     this.isCloudEnabled = false;
     this.db = null;
     this.loadFromLocalStorage();
@@ -100,7 +189,7 @@ class CloudSyncService {
       this.db = firebase.firestore();
       this.isCloudEnabled = true;
 
-      // 실시간 리스너 구독 (onSnapshot)
+      // 1. 실시간 방문 신청 구독 (onSnapshot)
       if (this.unsubscribe) this.unsubscribe();
       this.unsubscribe = this.db.collection('visits').onSnapshot(
         (snapshot) => {
@@ -133,6 +222,25 @@ class CloudSyncService {
           this.isCloudEnabled = false;
           this.loadFromLocalStorage();
           this.notifyListeners({ type: 'ERROR', message: '클라우드 동기화 실패. 로컬 모드로 전환됩니다.' });
+        }
+      );
+
+      // 2. 실시간 심방 가능 날짜 설정 구독 (onSnapshot)
+      if (this.settingsUnsubscribe) this.settingsUnsubscribe();
+      this.settingsUnsubscribe = this.db.collection('settings').doc('schedule').onSnapshot(
+        (doc) => {
+          if (doc.exists) {
+            const data = doc.data() || {};
+            if (Array.isArray(data.availableDates)) {
+              this.availableDates = data.availableDates;
+              this.isRestrictMode = data.isRestrictMode !== false;
+              this.saveAvailableDatesLocally(this.availableDates, this.isRestrictMode);
+              this.notifyListeners({ type: 'DATES_UPDATE', source: 'cloud' });
+            }
+          }
+        },
+        (error) => {
+          console.warn('Firestore 일정 설정 동기화 지연:', error);
         }
       );
 
@@ -173,14 +281,23 @@ class CloudSyncService {
   // 리스너 등록
   subscribe(callback) {
     this.listeners.push(callback);
-    callback(this.visits, { isCloud: this.isCloudEnabled });
+    callback(this.visits, {
+      isCloud: this.isCloudEnabled,
+      availableDates: this.getAvailableDates(),
+      isRestrictMode: this.getIsRestrictMode()
+    });
     return () => {
       this.listeners = this.listeners.filter((cb) => cb !== callback);
     };
   }
 
   notifyListeners(meta = {}) {
-    this.listeners.forEach((cb) => cb(this.visits, { isCloud: this.isCloudEnabled, ...meta }));
+    this.listeners.forEach((cb) => cb(this.visits, {
+      isCloud: this.isCloudEnabled,
+      availableDates: this.getAvailableDates(),
+      isRestrictMode: this.getIsRestrictMode(),
+      ...meta
+    }));
   }
 
   getVisits() {
@@ -359,6 +476,10 @@ class CloudSyncService {
     samples.forEach((sample) => {
       this.addVisit(sample);
     });
+
+    // 샘플 날짜들도 심방 가능 날짜로 자동 등록
+    const sampleDates = [getDateStr(2), getDateStr(4), getDateStr(5), getDateStr(6), getDateStr(7)];
+    this.addAvailableDates(sampleDates);
 
     this.notifyListeners({ type: 'SEED_COMPLETE' });
   }

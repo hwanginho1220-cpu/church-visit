@@ -61,6 +61,39 @@ class VisitStore {
     return h * 60 + m;
   }
 
+  // ==========================================
+  // 심방 가능 날짜 관리 로직
+  // ==========================================
+  getAvailableDates() {
+    return this.sync ? this.sync.getAvailableDates() : [];
+  }
+
+  isRestrictMode() {
+    if (!this.sync) return false;
+    const dates = this.sync.getAvailableDates();
+    // 설정된 가능 날짜가 1개 이상이고 제한 모드가 켜져 있을 때만 활성화
+    return this.sync.getIsRestrictMode() && dates.length > 0;
+  }
+
+  isDateAvailable(dateStr) {
+    if (!dateStr) return false;
+    if (!this.isRestrictMode()) return true;
+    return this.getAvailableDates().includes(dateStr);
+  }
+
+  checkDateRestriction(dateStr) {
+    if (!dateStr) return { allowed: true, reason: null };
+    if (!this.isRestrictMode()) return { allowed: true, reason: null };
+    const allowed = this.isDateAvailable(dateStr);
+    if (!allowed) {
+      return {
+        allowed: false,
+        reason: '선택하신 날짜는 목사님 심방 일정이 없는 날짜입니다. 지정된 심방 가능 날짜를 선택해주세요.'
+      };
+    }
+    return { allowed: true, reason: null };
+  }
+
   /**
    * [핵심] 시간 중복(충돌) 검사 함수
    * 두 시간대 [startA, endA)와 [startB, endB)가 겹치는 조건:
@@ -75,6 +108,16 @@ class VisitStore {
   checkTimeConflict(date, startTime, endTime, excludeId = null) {
     if (!date || !startTime || !endTime) {
       return { hasConflict: false, conflictVisit: null, reason: null };
+    }
+
+    // 날짜 제한 검증 먼저 체크
+    const dateCheck = this.checkDateRestriction(date);
+    if (!dateCheck.allowed) {
+      return {
+        hasConflict: true,
+        conflictVisit: null,
+        reason: dateCheck.reason
+      };
     }
 
     const startMin = this.timeToMinutes(startTime);
