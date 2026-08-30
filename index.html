@@ -189,14 +189,14 @@
             </div>
 
             <!-- 빠른 추천 시간대 버튼들 -->
-            <div class="flex flex-wrap gap-2 mb-2.5">
-              <button type="button" class="btn-quick-time px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-transparent transition" data-start="10:00" data-end="12:00">
+            <div class="flex flex-wrap gap-2 mb-2.5" id="quick-time-buttons-wrap">
+              <button type="button" class="btn-quick-time px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-transparent transition" data-slot="morning" data-start="10:00" data-end="12:00">
                 ☀️ 오전 10:00 ~ 12:00
               </button>
-              <button type="button" class="btn-quick-time px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-transparent transition" data-start="14:00" data-end="16:00">
+              <button type="button" class="btn-quick-time px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-transparent transition" data-slot="afternoon" data-start="14:00" data-end="16:00">
                 ☕ 오후 14:00 ~ 16:00
               </button>
-              <button type="button" class="btn-quick-time px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-transparent transition" data-start="19:00" data-end="21:00">
+              <button type="button" class="btn-quick-time px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-transparent transition" data-slot="evening" data-start="19:00" data-end="21:00">
                 🌙 저녁 19:00 ~ 21:00
               </button>
             </div>
@@ -410,9 +410,14 @@
                 <span class="text-xs font-bold text-slate-700">📌 현재 등록된 심방 가능 날짜</span>
                 <span id="admin-available-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700">0일 지정됨</span>
               </div>
-              <button type="button" id="btn-admin-clear-all-dates" class="text-[11px] text-rose-500 hover:text-rose-700 font-semibold underline">
-                모두 비우기
-              </button>
+              <div class="flex items-center gap-3">
+                <button type="button" id="btn-admin-reset-official" class="text-[11px] text-blue-600 hover:text-blue-800 font-bold bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 transition">
+                  📋 공식 9~12월 일정으로 복원
+                </button>
+                <button type="button" id="btn-admin-clear-all-dates" class="text-[11px] text-rose-500 hover:text-rose-700 font-semibold underline">
+                  모두 비우기
+                </button>
+              </div>
             </div>
 
             <div id="admin-available-dates-list" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-3 bg-slate-50 border border-slate-200 rounded-2xl">
@@ -675,11 +680,11 @@
     </div>
   </div>
 
-  <!-- 스크립트 로드 순서: 파이어베이스설정 -> 서비스 -> 스토어 -> 캘린더 -> 앱 (캐시 방지 v=20260829_dates) -->
-  <script src="js/firebase-config.js?v=20260829_dates"></script>
-  <script src="js/firebase-service.js?v=20260829_dates"></script>
-  <script src="js/store.js?v=20260829_dates"></script>
-  <script src="js/calendar.js?v=20260829_dates"></script>
-  <script src="js/app.js?v=20260829_dates"></script>
+  <!-- 스크립트 로드 순서: 파이어베이스설정 -> 서비스 -> 스토어 -> 캘린더 -> 앱 (캐시 방지 v=20260830_slots) -->
+  <script src="js/firebase-config.js?v=20260830_slots"></script>
+  <script src="js/firebase-service.js?v=20260830_slots"></script>
+  <script src="js/store.js?v=20260830_slots"></script>
+  <script src="js/calendar.js?v=20260830_slots"></script>
+  <script src="js/app.js?v=20260830_slots"></script>
 </body>
 </html>

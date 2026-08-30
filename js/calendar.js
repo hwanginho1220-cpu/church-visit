@@ -138,6 +138,7 @@ class VisitCalendar {
       const visits = dateMap.get(dayDateStr) || [];
       const hasVisits = visits.length > 0;
       const isDateAvailable = window.visitStore ? window.visitStore.isDateAvailable(dayDateStr) : true;
+      const slotSummary = (isRestrictMode && isDateAvailable && window.visitStore) ? window.visitStore.getSlotSummaryForDate(dayDateStr) : null;
 
       let textClass = 'text-slate-700';
       if (dayOfWeek === 0) textClass = 'text-rose-600 font-medium';
@@ -164,8 +165,16 @@ class VisitCalendar {
             <div class="flex items-center gap-1">
               ${
                 isRestrictMode && isDateAvailable
-                  ? `<span class="inline-flex items-center justify-center px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-emerald-100 text-emerald-700">
-                      가능
+                  ? `<span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-bold rounded-md ${
+                      slotSummary && slotSummary.includes('전일')
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : slotSummary && slotSummary === '저녁'
+                        ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                        : slotSummary && slotSummary === '오후'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-blue-100 text-blue-800 border border-blue-200'
+                    }">
+                      ${slotSummary || '가능'}
                      </span>`
                   : ''
               }
