@@ -319,6 +319,21 @@ class VisitStore {
   }
 
   /**
+   * 심방 완료 여부 판별 (날짜 및 시간이 지났는지 확인)
+   * @param {object} visit 
+   * @returns {boolean}
+   */
+  isVisitFinished(visit) {
+    if (!visit || !visit.date) return false;
+    const now = new Date();
+    const [y, m, d] = visit.date.split('-').map(Number);
+    const timeStr = visit.endTime || visit.startTime || '23:59';
+    const [hh, mm] = timeStr.split(':').map(Number);
+    const visitEndTime = new Date(y, m - 1, d, hh || 0, mm || 0, 0, 0);
+    return now >= visitEndTime;
+  }
+
+  /**
    * 31개 순 전체 신청 현황 통계
    */
   getSoonStats() {
@@ -334,7 +349,8 @@ class VisitStore {
       return {
         name: soon,
         isRegistered: !!visit,
-        visit: visit || null
+        visit: visit || null,
+        isFinished: visit ? this.isVisitFinished(visit) : false
       };
     });
 
@@ -344,17 +360,22 @@ class VisitStore {
         soonList.push({
           name: v.soonName,
           isRegistered: true,
-          visit: v
+          visit: v,
+          isFinished: this.isVisitFinished(v)
         });
       }
     });
 
     const completedCount = allVisits.length;
+    const finishedCount = allVisits.filter((v) => this.isVisitFinished(v)).length;
+    const upcomingCount = completedCount - finishedCount;
     const totalCount = DEFAULT_SOONS.length;
 
     return {
       total: totalCount,
-      completed: completedCount,
+      completed: completedCount, // 전체 신청된 순
+      finished: finishedCount,   // 심방 완료된 순 (시간 경과)
+      upcoming: upcomingCount,   // 심방 예정인 순
       remaining: Math.max(0, totalCount - completedCount),
       rate: Math.round((completedCount / totalCount) * 100),
       soonList

@@ -55,6 +55,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const headerSummaryText = document.getElementById('header-summary-text');
   const headerProgressBar = document.getElementById('header-progress-bar');
 
+  function updateHeaderSummary(stats) {
+    if (!stats) stats = window.visitStore.getSoonStats();
+    if (headerSummaryText) {
+      if (stats.finished > 0) {
+        headerSummaryText.textContent = `총 ${stats.total}개 순 중 ${stats.completed}개 순 신청 (심방 완료 ${stats.finished}순 · ${stats.rate}%)`;
+      } else {
+        headerSummaryText.textContent = `총 ${stats.total}개 순 중 ${stats.completed}개 순 신청 완료 (${stats.rate}%)`;
+      }
+    }
+    if (headerProgressBar) {
+      headerProgressBar.style.width = `${stats.rate}%`;
+    }
+  }
+
   // ==========================================
   // 1. 초기화 및 순 드롭다운 세팅 (여성순, 직여순, 남성순)
   // ==========================================
@@ -600,9 +614,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="text-sm font-bold text-slate-800">${v.leaderName} 순장</span>
               </div>
               <div class="flex items-center gap-1.5">
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  예약확정
-                </span>
+                ${
+                  window.visitStore.isVisitFinished(v)
+                    ? `<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                         <span>🕊️</span> 심방 완료
+                       </span>`
+                    : `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                         심방 예정
+                       </span>`
+                }
                 <span class="text-[11px] text-blue-600 font-medium hidden sm:inline">상세보기/수정 🔍</span>
               </div>
             </div>
@@ -661,39 +681,97 @@ document.addEventListener('DOMContentLoaded', () => {
     const visitMap = new Map();
     allVisits.forEach((v) => visitMap.set(v.soonName.trim(), v));
 
-    document.getElementById('status-completed-count').textContent = `${stats.completed}개 순`;
-    document.getElementById('status-remaining-count').textContent = `${stats.remaining}개 순`;
-    document.getElementById('status-rate-text').textContent = `${stats.rate}%`;
-    document.getElementById('status-progress-bar').style.width = `${stats.rate}%`;
+    // 상단 진행상황 4개 카드 갱신
+    const finishedCountElem = document.getElementById('status-finished-count');
+    if (finishedCountElem) finishedCountElem.textContent = `${stats.finished}개 순`;
+    const upcomingCountElem = document.getElementById('status-upcoming-count');
+    if (upcomingCountElem) upcomingCountElem.textContent = `${stats.upcoming}개 순`;
+    const remainingCountElem = document.getElementById('status-remaining-count');
+    if (remainingCountElem) remainingCountElem.textContent = `${stats.remaining}개 순`;
+    const rateTextElem = document.getElementById('status-rate-text');
+    if (rateTextElem) rateTextElem.textContent = `${stats.rate}%`;
+    const progressBarElem = document.getElementById('status-progress-bar');
+    if (progressBarElem) progressBarElem.style.width = `${stats.rate}%`;
 
     const renderCard = (soonName) => {
       const v = visitMap.get(soonName);
       if (v) {
-        return `
-          <div class="card-view-detail p-3 sm:p-3.5 rounded-2xl bg-white border border-emerald-200/90 shadow-2xs relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-emerald-500 hover:shadow-md transition group"
-               data-visit-id="${v.id}">
-            <div class="absolute top-0 right-0 w-10 h-10 bg-emerald-50 rounded-bl-2xl -mr-1 -mt-1 flex items-start justify-end p-1.5 group-hover:bg-emerald-100 transition">
-              <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-            </div>
-            <div>
-              <div class="flex items-center gap-1.5">
-                <span class="text-sm sm:text-base font-extrabold text-slate-800">${soonName}</span>
-                <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded-full">완료</span>
+        const isFinished = window.visitStore.isVisitFinished(v);
+
+        if (isFinished) {
+          // 🌟 1. [심방 완료] 된 순 - 큼지막하고 눈에 확 띄는 완료 배너
+          return `
+            <div class="card-view-detail p-3.5 sm:p-4 rounded-2xl bg-gradient-to-b from-emerald-50/90 to-emerald-100/40 border-2 border-emerald-500 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-emerald-600 hover:shadow-md transition group"
+                 data-visit-id="${v.id}">
+              <!-- 우측 상단 완료 리본 스탬프 -->
+              <div class="absolute top-0 right-0 w-11 h-11 bg-emerald-600 rounded-bl-3xl -mr-0.5 -mt-0.5 flex items-start justify-end p-2 text-white shadow-xs">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
               </div>
-              <p class="text-xs text-slate-500 mt-0.5 font-medium">${v.leaderName} 순장</p>
-              <div class="mt-2 space-y-0.5 text-xs text-slate-600">
-                <div class="font-bold text-blue-700 text-[11px]">${v.date}</div>
-                <div class="text-[11px]">${v.startTime} ~ ${v.endTime}</div>
-                <div class="truncate text-slate-500 text-[11px]">${v.place}</div>
+
+              <div>
+                <div class="flex items-center gap-1.5 pr-8">
+                  <span class="text-base sm:text-lg font-black text-slate-900">${soonName}</span>
+                </div>
+                <p class="text-xs text-slate-600 font-semibold mt-0.5">${v.leaderName} 순장</p>
+
+                <!-- 🌟 [핵심] 큼지막한 심방 완료 중앙 배너 🌟 -->
+                <div class="my-2.5 py-2 px-2 bg-gradient-to-r from-emerald-600 via-emerald-600 to-teal-700 text-white rounded-xl font-black text-xs sm:text-sm text-center shadow-xs flex items-center justify-center gap-1.5 tracking-tight border border-emerald-400">
+                  <span class="text-sm">🕊️</span>
+                  <span>심방 완료</span>
+                  <span class="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-md font-bold">Done</span>
+                </div>
+
+                <div class="space-y-1 text-xs text-slate-700 bg-white/95 rounded-xl p-2.5 border border-emerald-200/70 shadow-2xs">
+                  <div class="font-bold text-emerald-900 text-xs flex items-center gap-1">
+                    <span>📅</span> <span>${v.date} (${v.startTime} ~ ${v.endTime})</span>
+                  </div>
+                  <div class="truncate text-slate-600 text-xs flex items-center gap-1">
+                    <span>📍</span> <span class="truncate font-medium">${v.place}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-2.5 pt-2 border-t border-emerald-200/80 flex items-center justify-between text-xs font-bold text-emerald-800">
+                <span>상세 확인 / 수정</span>
+                <span class="group-hover:translate-x-1 transition-transform">→</span>
               </div>
             </div>
-            <div class="mt-2.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 group-hover:text-blue-600 font-medium">
-              <span>상세/수정</span>
-              <span>→</span>
+          `;
+        } else {
+          // 🗓️ 2. [심방 예정] 순 (신청 완료 및 날짜 대기 중)
+          return `
+            <div class="card-view-detail p-3.5 sm:p-4 rounded-2xl bg-white border border-blue-200 shadow-2xs relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-blue-400 hover:shadow-md transition group"
+                 data-visit-id="${v.id}">
+              <div class="absolute top-0 right-0 w-9 h-9 bg-blue-50 rounded-bl-2xl -mr-0.5 -mt-0.5 flex items-start justify-end p-1.5 group-hover:bg-blue-100 transition">
+                <span class="text-xs">🗓️</span>
+              </div>
+
+              <div>
+                <div class="flex items-center gap-1.5 pr-7">
+                  <span class="text-base sm:text-lg font-black text-slate-800">${soonName}</span>
+                  <span class="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">예정</span>
+                </div>
+                <p class="text-xs text-slate-500 font-semibold mt-0.5">${v.leaderName} 순장</p>
+
+                <div class="my-2.5 space-y-1 text-xs text-slate-600 bg-slate-50/90 rounded-xl p-2.5 border border-slate-100">
+                  <div class="font-bold text-blue-700 text-xs flex items-center gap-1">
+                    <span>📅</span> <span>${v.date} (${v.startTime} ~ ${v.endTime})</span>
+                  </div>
+                  <div class="truncate text-slate-600 text-xs flex items-center gap-1">
+                    <span>📍</span> <span class="truncate font-medium">${v.place}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-medium text-slate-400 group-hover:text-blue-600">
+                <span>상세 / 수정</span>
+                <span class="group-hover:translate-x-1 transition-transform">→</span>
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        }
       } else {
+        // ⏳ 3. [미신청] 순
         return `
           <div class="p-3 sm:p-3.5 rounded-2xl bg-slate-50/70 border border-dashed border-slate-300 flex flex-col justify-between hover:bg-white hover:border-blue-400 transition">
             <div>
@@ -703,7 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
               <p class="text-xs text-slate-400 mt-0.5">심방 미정</p>
             </div>
-            <button class="btn-quick-apply-soon mt-3 w-full py-1 text-xs font-semibold rounded-xl bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition"
+            <button class="btn-quick-apply-soon mt-3 w-full py-1.5 text-xs font-semibold rounded-xl bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition"
                     data-soon="${soonName}">
               신청하기
             </button>
@@ -715,15 +793,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let html = '';
     soonGroups.forEach((group) => {
       const groupCount = group.items.length;
-      const groupDoneCount = group.items.filter((item) => visitMap.has(item)).length;
+      const groupFinishedCount = group.items.filter((item) => {
+        const visit = visitMap.get(item);
+        return visit && window.visitStore.isVisitFinished(visit);
+      }).length;
+      const groupBookedCount = group.items.filter((item) => visitMap.has(item)).length;
 
       html += `
         <div class="col-span-full mt-3 first:mt-0 pt-3 first:pt-0 border-t first:border-0 border-slate-100">
           <div class="flex items-center justify-between mb-3">
             <h4 class="font-extrabold text-slate-800 text-sm sm:text-base flex items-center gap-2">
               <span>${group.category}</span>
-              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                ${groupDoneCount} / ${groupCount} 완료
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                심방 완료 ${groupFinishedCount}순 · 신청 ${groupBookedCount} / ${groupCount}순
               </span>
             </h4>
           </div>
@@ -1007,10 +1089,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let html = '';
     visits.forEach((v, idx) => {
+      const isFinished = window.visitStore.isVisitFinished(v);
       html += `
         <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition text-sm text-slate-700">
           <td class="py-3 px-3 text-center text-slate-400 text-xs">${idx + 1}</td>
-          <td class="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">${v.soonName}</td>
+          <td class="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">
+            ${v.soonName}
+            ${
+              isFinished
+                ? `<span class="ml-1 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">🕊️ 완료</span>`
+                : `<span class="ml-1 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">예정</span>`
+            }
+          </td>
           <td class="py-3 px-3 whitespace-nowrap">${v.leaderName}</td>
           <td class="py-3 px-3 whitespace-nowrap font-medium text-blue-700">
             ${v.date} <span class="text-xs text-slate-500 font-normal">(${v.startTime}~${v.endTime})</span>
@@ -1044,8 +1134,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           renderSoonStatusBoard();
           const stats = window.visitStore.getSoonStats();
-          if (headerSummaryText) headerSummaryText.textContent = `총 ${stats.total}개 순 중 ${stats.completed}개 순 신청 완료 (${stats.rate}%)`;
-          if (headerProgressBar) headerProgressBar.style.width = `${stats.rate}%`;
+          updateHeaderSummary(stats);
           validateConflict();
         }
       });
@@ -1173,8 +1262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const stats = window.visitStore.getSoonStats();
-    headerSummaryText.textContent = `총 ${stats.total}개 순 중 ${stats.completed}개 순 신청 완료 (${stats.rate}%)`;
-    headerProgressBar.style.width = `${stats.rate}%`;
+    updateHeaderSummary(stats);
 
     renderAvailableDatesChips();
     updateQuickTimeButtonsForDate(dateInput.value);
@@ -1272,7 +1360,40 @@ document.addEventListener('DOMContentLoaded', () => {
     currentDetailVisit = visit;
     const dayName = getDayOfWeekStr(visit.date);
 
-    document.getElementById('detail-modal-soon-badge').textContent = visit.soonName;
+    const isFinished = window.visitStore.isVisitFinished(visit);
+
+    const modalSoonBadge = document.getElementById('detail-modal-soon-badge');
+    if (modalSoonBadge) {
+      modalSoonBadge.textContent = visit.soonName;
+      if (isFinished) {
+        modalSoonBadge.className = 'px-2.5 py-1 rounded-xl text-sm font-extrabold bg-emerald-600 text-white flex items-center gap-1 shadow-xs';
+        modalSoonBadge.innerHTML = '<span>🕊️</span> ' + visit.soonName + ' <span class="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-md font-bold">완료</span>';
+      } else {
+        modalSoonBadge.className = 'px-2.5 py-1 rounded-xl text-sm font-extrabold bg-blue-600 text-white';
+        modalSoonBadge.textContent = visit.soonName;
+      }
+    }
+
+    const finishedAlert = document.getElementById('detail-finished-alert');
+    if (finishedAlert) {
+      if (isFinished) {
+        finishedAlert.className = 'p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md flex items-center gap-3 border border-emerald-400/40';
+        finishedAlert.innerHTML = `
+          <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl shrink-0 shadow-inner">🕊️</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm sm:text-base font-black tracking-tight flex items-center gap-1.5">
+              <span>심방 완료</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/25 text-emerald-50">은혜 가운데 마쳤습니다</span>
+            </div>
+            <p class="text-xs text-emerald-100 mt-0.5 leading-snug">이 순의 대심방 일정이 성공적으로 완료되었습니다.</p>
+          </div>
+        `;
+      } else {
+        finishedAlert.className = 'hidden';
+        finishedAlert.innerHTML = '';
+      }
+    }
+
     document.getElementById('detail-view-soon-leader').textContent = `${visit.soonName} (${visit.leaderName} 순장)`;
     document.getElementById('detail-view-datetime').textContent = `${visit.date} (${dayName}요일) ${visit.startTime} ~ ${visit.endTime}`;
     document.getElementById('detail-view-place').textContent = visit.place;
@@ -1424,8 +1545,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (adminAuthenticated) renderAdminTable();
 
         const stats = window.visitStore.getSoonStats();
-        if (headerSummaryText) headerSummaryText.textContent = `총 ${stats.total}개 순 중 ${stats.completed}개 순 신청 완료 (${stats.rate}%)`;
-        if (headerProgressBar) headerProgressBar.style.width = `${stats.rate}%`;
+        updateHeaderSummary(stats);
         validateConflict();
       } else {
         alert('수정 저장에 실패했습니다. 다시 시도해주세요.');
@@ -1473,8 +1593,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (adminAuthenticated) renderAdminTable();
 
             const stats = window.visitStore.getSoonStats();
-            if (headerSummaryText) headerSummaryText.textContent = `총 ${stats.total}개 순 중 ${stats.completed}개 순 신청 완료 (${stats.rate}%)`;
-            if (headerProgressBar) headerProgressBar.style.width = `${stats.rate}%`;
+            updateHeaderSummary(stats);
             validateConflict();
           } else {
             alert('삭제에 실패했습니다. 다시 시도해주세요.');

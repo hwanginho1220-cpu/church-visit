@@ -180,7 +180,11 @@ class VisitCalendar {
               }
               ${
                 hasVisits
-                  ? `<span class="inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700">
+                  ? `<span class="inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-bold rounded-full ${
+                      window.visitStore && visits.every((v) => window.visitStore.isVisitFinished(v))
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-blue-100 text-blue-700'
+                    }">
                       ${visits.length}건
                      </span>`
                   : ''
@@ -192,16 +196,26 @@ class VisitCalendar {
           <div class="mt-1 space-y-1 overflow-hidden">
             ${visits
               .slice(0, 2)
-              .map(
-                (v) => `
+              .map((v) => {
+                const isFin = window.visitStore && window.visitStore.isVisitFinished(v);
+                return isFin
+                  ? `
+              <div class="card-view-detail truncate text-[10px] sm:text-xs py-0.5 px-1.5 rounded font-bold bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300/80 flex items-center gap-1 shadow-2xs cursor-pointer transition"
+                   data-visit-id="${v.id}" title="심방 완료: ${v.soonName}">
+                <span class="text-[10px] text-emerald-700 font-extrabold shrink-0">✓</span>
+                <span class="font-bold shrink-0">${v.startTime}</span>
+                <span class="truncate">${v.soonName}</span>
+              </div>
+            `
+                  : `
               <div class="card-view-detail truncate text-[10px] sm:text-xs py-0.5 px-1.5 rounded font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-900 border border-indigo-200/60 flex items-center gap-1 shadow-2xs cursor-pointer transition"
                    data-visit-id="${v.id}">
                 <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
                 <span class="font-bold shrink-0">${v.startTime}</span>
                 <span class="truncate">${v.soonName}</span>
               </div>
-            `
-              )
+            `;
+              })
               .join('')}
             ${
               visits.length > 2

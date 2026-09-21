@@ -271,21 +271,44 @@
     <!-- [탭 3] 30개 순 전체현황판 (Status Board) -->
     <!-- ========================================== -->
     <section id="tab-content-status" class="hidden space-y-6">
-      <!-- 진행 상황 요약 카드 -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-          <span class="text-xs text-slate-500 font-semibold block mb-1">신청 완료된 순</span>
-          <div class="text-2xl font-black text-emerald-600" id="status-completed-count">0개 순</div>
+      <!-- 진행 상황 요약 카드 (4개 카드로 세분화) -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div class="bg-gradient-to-br from-emerald-500 to-teal-600 p-4 sm:p-5 rounded-2xl text-white shadow-md shadow-emerald-500/15 flex flex-col justify-between">
+          <div>
+            <span class="text-xs text-emerald-100 font-bold block mb-1 flex items-center gap-1">
+              <span>🕊️</span> 심방 완료
+            </span>
+            <div class="text-2xl sm:text-3xl font-black tracking-tight" id="status-finished-count">0개 순</div>
+          </div>
+          <span class="text-[11px] text-emerald-100/90 font-medium mt-1">심방을 마쳤습니다</span>
         </div>
-        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-          <span class="text-xs text-slate-500 font-semibold block mb-1">아직 미신청된 순</span>
-          <div class="text-2xl font-black text-slate-400" id="status-remaining-count">30개 순</div>
+        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-blue-200 shadow-2xs flex flex-col justify-between">
+          <div>
+            <span class="text-xs text-blue-600 font-bold block mb-1 flex items-center gap-1">
+              <span>🗓️</span> 심방 예정
+            </span>
+            <div class="text-2xl sm:text-3xl font-black text-blue-600 tracking-tight" id="status-upcoming-count">0개 순</div>
+          </div>
+          <span class="text-[11px] text-slate-400 font-medium mt-1">일정 확정 및 준비 중</span>
         </div>
-        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-          <span class="text-xs text-slate-500 font-semibold block mb-1">신청 진행률</span>
-          <div class="text-2xl font-black text-blue-600" id="status-rate-text">0%</div>
+        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div>
+            <span class="text-xs text-slate-500 font-semibold block mb-1 flex items-center gap-1">
+              <span>⏳</span> 아직 미신청
+            </span>
+            <div class="text-2xl sm:text-3xl font-black text-slate-400 tracking-tight" id="status-remaining-count">31개 순</div>
+          </div>
+          <span class="text-[11px] text-slate-400 font-medium mt-1">신청 대기 중</span>
+        </div>
+        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div>
+            <span class="text-xs text-slate-500 font-semibold block mb-1 flex items-center gap-1">
+              <span>📊</span> 전체 신청률
+            </span>
+            <div class="text-2xl sm:text-3xl font-black text-indigo-600 tracking-tight" id="status-rate-text">0%</div>
+          </div>
           <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2">
-            <div id="status-progress-bar" class="bg-blue-600 h-full rounded-full" style="width: 0%"></div>
+            <div id="status-progress-bar" class="bg-indigo-600 h-full rounded-full" style="width: 0%"></div>
           </div>
         </div>
       </div>
@@ -500,6 +523,9 @@
 
       <!-- 1. [보기 모드] -->
       <div id="detail-view-mode" class="space-y-4">
+        <!-- 심방 완료 안내 배너 (JS에서 동적 표시) -->
+        <div id="detail-finished-alert" class="hidden"></div>
+
         <!-- 요약 카드 -->
         <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-3 text-sm text-slate-700">
           <div class="flex items-center justify-between pb-2 border-b border-slate-200">
@@ -680,11 +706,11 @@
     </div>
   </div>
 
-  <!-- 스크립트 로드 순서: 파이어베이스설정 -> 서비스 -> 스토어 -> 캘린더 -> 앱 (캐시 방지 v=20260830_slots) -->
-  <script src="js/firebase-config.js?v=20260830_slots"></script>
-  <script src="js/firebase-service.js?v=20260830_slots"></script>
-  <script src="js/store.js?v=20260830_slots"></script>
-  <script src="js/calendar.js?v=20260830_slots"></script>
-  <script src="js/app.js?v=20260830_slots"></script>
+  <!-- 스크립트 로드 순서: 파이어베이스설정 -> 서비스 -> 스토어 -> 캘린더 -> 앱 (캐시 방지 v=20260922_finish_v2) -->
+  <script src="js/firebase-config.js?v=20260922_finish_v2"></script>
+  <script src="js/firebase-service.js?v=20260922_finish_v2"></script>
+  <script src="js/store.js?v=20260922_finish_v2"></script>
+  <script src="js/calendar.js?v=20260922_finish_v2"></script>
+  <script src="js/app.js?v=20260922_finish_v2"></script>
 </body>
 </html>
